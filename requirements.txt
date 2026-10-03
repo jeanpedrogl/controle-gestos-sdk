@@ -1,0 +1,9 @@
+mediapipe
+opencv-python
+numpy
+# mediapipe importa matplotlib internamente (mediapipe.tasks.python.vision.drawing_utils),
+# mesmo sem usarmos nada de plot aqui. Precisa estar no venv (não só no sistema): a versão
+# instalada via apt (python3-matplotlib) foi compilada contra numpy 1.x e quebra com o
+# numpy 2.x que o mediapipe/opencv puxam — instalar aqui garante uma build compatível com
+# numpy 2.x, e o venv prioriza seu próprio site-packages sobre o do sistema.
+matplotlib

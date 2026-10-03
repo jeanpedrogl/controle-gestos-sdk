@@ -1,0 +1,21 @@
+# Ambiente virtual Python (recriado por ./setup_ambiente.sh)
+/.venv/
+
+# Saídas do colcon (recriadas por `python3 -m colcon build`)
+/build/
+/install/
+/log/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# IDEs / sistema
+.idea/
+.vscode/
+.DS_Store
+
+# Arquivos pessoais do Claude Code
+.claude/settings.local.json
+CLAUDE.local.md

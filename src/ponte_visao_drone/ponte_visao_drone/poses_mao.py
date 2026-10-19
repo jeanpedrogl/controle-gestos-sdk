@@ -16,7 +16,8 @@ aqui), ou seja, as do ponto de vista do usuário. Qualquer pose que não bata ex
 dessas é DESCONHECIDO (o drone paira). Mais de uma mão na imagem (por exemplo outra pessoa
 entrando no quadro da câmera do drone) não é comando nenhum: VARIAS_MAOS, o drone paira e a
 contagem do punho cai. Com mais de uma pessoa no quadro (`visao_mao.py`, via MediaPipe Pose)
-vale o mesmo: VARIAS_PESSOAS.
+vale o mesmo: VARIAS_PESSOAS. A única exceção são os dois punhos fechados da *mesma* pessoa
+(DOIS_PUNHOS, "voltar para a base"): só quando as duas mãos vieram dos recortes de um único corpo.
 """
 
 from enum import Enum
@@ -47,6 +48,7 @@ DEDOS = {"indicador": (6, 8), "medio": (10, 12), "anelar": (14, 16), "minimo": (
 class Gesto(Enum):
     NENHUMA_MAO = "Nenhuma mao"
     PUNHO_FECHADO = "Punho fechado"
+    DOIS_PUNHOS = "Dois punhos"
     INDICADOR_CIMA = "Indicador para cima"
     INDICADOR_BAIXO = "Indicador para baixo"
     POLEGAR_ESQUERDA = "Polegar para a esquerda"
@@ -146,10 +148,17 @@ def classificar_pose(p: np.ndarray) -> Gesto:
     return Gesto.DESCONHECIDO
 
 
-def classificar_maos(maos: list[np.ndarray]) -> Gesto:
-    """Gesto do quadro todo. Só vale com exatamente uma mão: com mais, ninguém sabe de quem é o comando."""
+def classificar_maos(maos: list[np.ndarray], mesma_pessoa: bool = False) -> Gesto:
+    """Gesto do quadro todo. Vale com exatamente uma mão: com mais, ninguém sabe de quem é o comando.
+
+    Exceção: `mesma_pessoa` (as duas mãos vieram dos recortes de um único corpo) e as duas fechadas
+    em punho dão DOIS_PUNHOS. Sem a garantia do corpo (modo "só mão"), duas mãos são VARIAS_MAOS.
+    """
     if not maos:
         return Gesto.NENHUMA_MAO
     if len(maos) > 1:
+        if (mesma_pessoa and len(maos) == 2
+                and all(classificar_pose(m) is Gesto.PUNHO_FECHADO for m in maos)):
+            return Gesto.DOIS_PUNHOS
         return Gesto.VARIAS_MAOS
     return classificar_pose(maos[0])

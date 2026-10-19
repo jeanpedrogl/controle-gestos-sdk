@@ -37,6 +37,18 @@ _DIRECAO = {
     "V": (0, 0, 0, 1),  # sempre anti-horário: a câmera gira com o drone, então o lado da mão na imagem não serve
 }
 
+# O que cada gesto de movimento faz, para o terminal (ASCII: também pode ir para a janela do OpenCV).
+# Tem que cobrir exatamente as chaves de _DIRECAO (`test_comando_voo.py` confere).
+DESCRICAO = {
+    "INDICADOR_CIMA": "subir",
+    "INDICADOR_BAIXO": "descer",
+    "POLEGAR_ESQUERDA": "ir para a direita do drone (sua esquerda)",
+    "POLEGAR_DIREITA": "ir para a esquerda do drone (sua direita)",
+    "HANG_LOOSE": "ir para frente, devagar",
+    "MAO_ABERTA": "ir para tras",
+    "V": "girar no sentido anti-horario",
+}
+
 ZEROS = (0.0, 0.0, 0.0, 0.0)
 
 
@@ -88,3 +100,49 @@ class Suavizador:
             saida.append(limitar(atual + delta))
         self.atual = tuple(saida)
         return self.atual
+
+
+class GestoMantido:
+    """Evento único quando o gesto `alvo` fica mantido `segurar_s` (punho, dois punhos).
+
+    Mesmas regras do punho do modo teclado (`avaliar_punho` no nó): falhas de detecção de até
+    `tolerancia_s` no meio não zeram a contagem nem contam como soltar; um intervalo maior que
+    `quadro_velho_s` entre quadros (vídeo travou) recomeça a contagem; depois de disparar, só dispara
+    de novo quando o gesto for solto. `agora` é o instante de chegada do quadro.
+    """
+
+    def __init__(self, alvo: str, segurar_s: float, tolerancia_s: float, quadro_velho_s: float) -> None:
+        self.alvo = alvo
+        self.segurar_s = segurar_s
+        self.tolerancia_s = tolerancia_s
+        self.quadro_velho_s = quadro_velho_s
+        self._inicio: float | None = None
+        self._visto_em = -1e9
+        self._disparado = False
+
+    def avaliar(self, nome: str, agora: float) -> bool:
+        """True só no quadro em que o gesto completa `segurar_s`."""
+        if nome != self.alvo:
+            if agora - self._visto_em > self.tolerancia_s:  # soltou de verdade, não foi um quadro ruim
+                self._inicio = None
+                self._disparado = False
+            return False
+        if self._disparado:
+            self._visto_em = agora
+            return False
+        if self._inicio is not None and agora - self._visto_em > self.quadro_velho_s:
+            self._inicio = None  # o vídeo travou no meio: recomeça, não "pula" o tempo parado
+        self._visto_em = agora
+        if self._inicio is None:
+            self._inicio = agora
+            return False
+        if agora - self._inicio >= self.segurar_s:
+            self._disparado = True
+            return True
+        return False
+
+    def progresso(self, agora: float) -> float | None:
+        """Fração [0, 1) já cumprida, ou None sem contagem em andamento (para a janela)."""
+        if self._inicio is None or self._disparado or agora - self._visto_em > self.tolerancia_s:
+            return None
+        return min((agora - self._inicio) / self.segurar_s, 0.99)

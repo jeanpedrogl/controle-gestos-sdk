@@ -129,3 +129,12 @@ def test_varias_maos_nao_sao_comando():
     assert classificar_maos([]) is Gesto.NENHUMA_MAO
     assert classificar_maos([punho]) is Gesto.PUNHO_FECHADO
     assert classificar_maos([punho, mao({"indicador"}, centro=(500.0, 240.0))]) is Gesto.VARIAS_MAOS
+
+
+def test_dois_punhos_so_valem_da_mesma_pessoa():
+    esquerdo, direito = mao(), mao(centro=(500.0, 240.0))
+    assert classificar_maos([esquerdo, direito], mesma_pessoa=True) is Gesto.DOIS_PUNHOS
+    assert classificar_maos([esquerdo, direito]) is Gesto.VARIAS_MAOS  # modo "só mão": sem garantia
+    com_indicador = mao({"indicador"}, centro=(500.0, 240.0))
+    assert classificar_maos([esquerdo, com_indicador], mesma_pessoa=True) is Gesto.VARIAS_MAOS
+    assert classificar_maos([esquerdo, direito, mao(centro=(100.0, 240.0))], mesma_pessoa=True) is Gesto.VARIAS_MAOS

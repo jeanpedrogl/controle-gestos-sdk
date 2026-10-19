@@ -136,7 +136,8 @@ class DetectorGestos:
             self.recortes = recortes
             maos = [m for m in (self._mao_no_recorte(frame_bgr, r) for r in recortes) if m is not None]
             self.maos = remover_duplicadas(maos)
-            return classificar_maos(self.maos)  # nenhuma mão levantada: NENHUMA_MAO
+            # As mãos vieram dos recortes de um único corpo: dois punhos podem valer (DOIS_PUNHOS).
+            return classificar_maos(self.maos, mesma_pessoa=True)  # nenhuma mão levantada: NENHUMA_MAO
 
         # Ninguém no quadro, ou só um pedaço da pessoa (sem ombros): provavelmente a mão está perto
         # da câmera e o corpo ficou de fora.

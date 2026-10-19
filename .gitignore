@@ -19,3 +19,6 @@ __pycache__/
 # Arquivos pessoais do Claude Code
 .claude/settings.local.json
 CLAUDE.local.md
+
+# Manual em PDF e seus fontes: ficam só nesta máquina, não vão para o GitHub
+/docs/

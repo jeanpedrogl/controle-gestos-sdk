@@ -53,8 +53,18 @@ source /opt/ros/humble/setup.bash
 source .venv/bin/activate
 python3 -m colcon build --symlink-install
 source install/setup.bash
-ros2 launch ponte_visao_drone sistema.launch.py
+ros2 launch ponte_visao_drone sistema.launch.py              # modo teclado (treino, padrão)
+ros2 launch ponte_visao_drone sistema.launch.py modo:=fase3  # Fase 3 da Flying Robots League
 ```
+
+No **modo Fase 3** quem decide é a máquina de estados (`missao_fase3.py`) e nenhuma tecla funciona,
+só `q`/Esc para sair e desarmar (o regulamento proíbe tocar no computador durante a tentativa).
+Assim que celular e drone estão conectados, o terminal faz uma contagem de 5 s e o drone decola
+sozinho, procura o operador, se aproxima uma vez para enquadrá-lo e passa o controle aos gestos: o
+punho fechado por 2 s pousa (em voo) ou decola (numa base), os dois punhos por 2 s voltam para a
+base de decolagem. O terminal mostra o reconhecimento do operador e cada comando visual, em cores
+(`COMANDO:GESTO -> o que ele faz`), e a mesma coisa vai, sem cores, para
+`~/.ros/log/fase3-<data>-<hora>.txt` (o log das atividades que o regulamento pede).
 
 Use `python3 -m colcon build`, não só `colcon build`: o executável `colcon` do apt tem seu
 próprio shebang fixo pro Python do sistema, então chamado direto ele ignora o venv ativado e
@@ -110,6 +120,7 @@ stick mode), além do resultado de decolar/pousar (`flight.take_off`/`flight.lan
 | Punho fechado (polegar recolhido) por ~2 s | **Decolar** se o drone está no chão, **pousar** se está voando (pela telemetria `voando`; sem telemetria não faz nada). Decolar por gesto só funciona **armado** (`a`); desarmado, o punho no chão só avisa na janela. Pousar vale sempre. A janela mostra a contagem; falhas de detecção de até 0,4 s no meio não zeram a contagem, mudar de gesto por mais tempo que isso cancela, e só age de novo depois de soltar o punho. Vale o polegar por cima dos dedos ou ao lado do indicador; polegar saindo da mão (para cima, para baixo, para o lado) não é mão fechada. Uma decolagem já pedida não é repetida por 10 s (uma recusada pelo celular libera nova tentativa). |
 | Nenhuma mão / qualquer outra pose | Pairar |
 | **Mais de uma mão levantada** ou **mais de uma pessoa** na imagem | Pairar: sem comando nenhum, e a contagem do punho cai. Evita que alguém que entre no quadro do drone assuma o controle. |
+| **Os dois punhos fechados** (as duas mãos levantadas, da mesma pessoa) | Pairar no modo atual. No modo Fase 3 (`modo:=fase3`) é o "voltar para a base de decolagem". Só vale quando as duas mãos vieram do corpo de **uma** pessoa detectada; sem o corpo (mão perto da câmera), duas mãos continuam sendo "mais de uma mão". |
 
 Direita/esquerda são as do ponto de vista do usuário (o quadro do drone é espelhado, como num espelho). O comando
 vale enquanto o gesto é mantido; sem gesto reconhecido o drone paira. Polegar para cima/para baixo
@@ -152,12 +163,13 @@ Consequências práticas:
 Publicados por este pacote (consumidos pelo celular):
 - `/drone/cmd_vel` (`geometry_msgs/Twist`) — velocidade, a **20 Hz fixos** (mesmo em zeros) enquanto armado; se os gestos param de chegar (vídeo do drone travado ou atrasado, mais de 0,6 s sem quadro novo), manda zeros.
 - `/drone/stick_mode` (`std_msgs/Bool`) — só quando o estado muda (quando `false`, o controle físico da DJI assume).
-- `/drone/rpc/request` (`std_msgs/String`, JSON) — `flight.take_off`, `flight.land` e `video.set_quality`, com resposta em `/phone/rpc/response` (ids únicos por programa; a resposta aparece na janela).
+- `/drone/rpc/request` (`std_msgs/String`, JSON) — `flight.take_off`, `flight.land` e `video.set_quality`, com resposta em `/phone/rpc/response` (ids únicos por programa; a resposta aparece na janela). Também `state.stream_start` (seção `flight`, 250 ms), pedido de novo sempre que `/phone/state` some.
 
 Publicados pelo celular (consumidos aqui):
 - `/phone/drone_camera/compressed` (`sensor_msgs/CompressedImage`) — vídeo do drone, ~8fps JPEG; **é a entrada da visão**. Dá para pedir mais fps/resolução ao celular com o RPC `video.set_quality`.
 - `/phone/telemetria` (`std_msgs/String`, JSON, 2 Hz) — `drone_conectado`, `stick_mode`, `bateria_percent`, `altitude_m`, `velocidade_ms`, `satelites`, `voando`. Usada para só armar com o celular ouvindo e para desarmar se o celular retomar o controle.
 - `/phone/rpc/response` (`std_msgs/String`, JSON) — respostas dos comandos RPC.
+- `/phone/state` (`std_msgs/String`, JSON) — estado do voo; só `flight.landing_confirmation_needed` é usado: o drone parou a ~0,3 m do chão esperando confirmação de pouso (a janela avisa; punho fechado ou `l` confirma).
 
 O contrato completo (todos os tópicos e comandos RPC) está no `PROTOCOLO.md` e no `MANUAL_DESENVOLVEDOR.md` do repositório `drone-bridge`.
 

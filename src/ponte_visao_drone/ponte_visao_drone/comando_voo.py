@@ -14,37 +14,27 @@ import math
 VELOCIDADE_HORIZONTAL = 0.2
 VELOCIDADE_VERTICAL = 0.2
 VELOCIDADE_YAW = 0.2
+# O hang loose leva o drone para a frente, na direção de quem faz o gesto (a câmera que vê a mão é a
+# do drone): metade da velocidade horizontal. Para trás continua a velocidade cheia.
+FATOR_FRENTE = 0.5
 
 # Rampa: tempo para ir de 0 até a velocidade máxima e de volta a 0.
 TEMPO_SUBIDA_S = 0.3
 TEMPO_DESCIDA_S = 0.15
 
-# Depois de um movimento, o gesto oposto dentro deste prazo é o "retorno" da mão ao centro,
-# não um comando (mão sobe -> volta descendo -> o drone não deve descer).
-RETORNO_S = 0.8
-
-PARADO = "MAO_ABERTA_PARADA"
+PARADO = "NENHUMA_MAO"  # gesto "sem comando": zeros
 
 # nome do Gesto -> (x, y, z, yaw) em múltiplos da velocidade de cada eixo
 _DIRECAO = {
-    "MAO_ESQUERDA": (0, 1, 0, 0),
-    "MAO_DIREITA": (0, -1, 0, 0),
-    "MAO_SUBINDO": (0, 0, 1, 0),
-    "MAO_DESCENDO": (0, 0, -1, 0),
-    "MAO_APROXIMANDO": (1, 0, 0, 0),  # palma cresceu: drone vai para frente
-    "MAO_AFASTANDO": (-1, 0, 0, 0),  # palma encolheu: drone vai para trás
-    "V_ESQUERDA": (0, 0, 0, 1),
-    "V_DIREITA": (0, 0, 0, -1),
-}
-
-# Pares de gestos de movimento opostos (a mão volta ao centro fazendo o oposto).
-_OPOSTOS = {
-    "MAO_ESQUERDA": "MAO_DIREITA",
-    "MAO_DIREITA": "MAO_ESQUERDA",
-    "MAO_SUBINDO": "MAO_DESCENDO",
-    "MAO_DESCENDO": "MAO_SUBINDO",
-    "MAO_APROXIMANDO": "MAO_AFASTANDO",
-    "MAO_AFASTANDO": "MAO_APROXIMANDO",
+    "INDICADOR_CIMA": (0, 0, 1, 0),
+    "INDICADOR_BAIXO": (0, 0, -1, 0),
+    # O drone está de frente para quem faz o gesto (é a câmera dele que vê a mão), então a esquerda
+    # da pessoa é a direita do drone: polegar para a direita (da pessoa) = y+ (esquerda do drone).
+    "POLEGAR_ESQUERDA": (0, -1, 0, 0),
+    "POLEGAR_DIREITA": (0, 1, 0, 0),
+    "HANG_LOOSE": (FATOR_FRENTE, 0, 0, 0),  # para frente, devagar
+    "MAO_ABERTA": (-1, 0, 0, 0),  # palma para a câmera: para trás
+    "V": (0, 0, 0, 1),  # sempre anti-horário: a câmera gira com o drone, então o lado da mão na imagem não serve
 }
 
 ZEROS = (0.0, 0.0, 0.0, 0.0)
@@ -69,25 +59,6 @@ def alvo_do_gesto(nome: str) -> tuple[float, float, float, float]:
         limitar(dz * VELOCIDADE_VERTICAL),
         limitar(dyaw * VELOCIDADE_YAW),
     )
-
-
-class FiltroRetorno:
-    """Ignora o gesto oposto que acontece logo depois de um movimento (a mão voltando)."""
-
-    def __init__(self, janela_s: float = RETORNO_S) -> None:
-        self._janela_s = janela_s
-        self._ultimo: str | None = None
-        self._instante = 0.0
-
-    def reiniciar(self) -> None:
-        self._ultimo = None
-
-    def filtrar(self, nome: str, agora: float) -> str:
-        if nome in _OPOSTOS:
-            if _OPOSTOS[nome] == self._ultimo and agora - self._instante < self._janela_s:
-                return PARADO
-            self._ultimo, self._instante = nome, agora
-        return nome
 
 
 class Suavizador:

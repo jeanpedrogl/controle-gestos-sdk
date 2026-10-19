@@ -3,7 +3,7 @@
 O celular decodifica o vídeo real (OcuSync via DJI SDK) e publica frames
 JPEG comprimidos no tópico `/phone/drone_camera/compressed`. Este nó só
 assina e exibe — é puramente monitoramento, não controla nada (quem
-controla o drone é a webcam, via `integracao_visao_drone.py`).
+controla o drone é o `piloto_gestos` de `integracao_visao_drone.py`, que já mostra este mesmo vídeo).
 """
 
 import signal

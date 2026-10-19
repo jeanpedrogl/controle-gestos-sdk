@@ -4,7 +4,7 @@
   <name>ponte_visao_drone</name>
   <version>0.1.0</version>
   <description>
-    Visão computacional por gestos rodando no computador (webcam); ponte ROS2
+    Visão computacional por gestos rodando no computador (câmera do drone); ponte ROS2
     para o celular controlar o drone DJI Mini SE.
   </description>
   <maintainer email="jeanpedrogrossi@gmail.com">Jean Pedro Grossi Líbero</maintainer>

@@ -2,12 +2,10 @@ import math
 
 from ponte_visao_drone.comando_voo import (
     PARADO,
-    RETORNO_S,
     VELOCIDADE_HORIZONTAL,
     VELOCIDADE_VERTICAL,
     VELOCIDADE_YAW,
     ZEROS,
-    FiltroRetorno,
     Suavizador,
     alvo_do_gesto,
     limitar,
@@ -26,45 +24,20 @@ def test_limitar_corta_e_trata_nan():
 
 
 def test_mapeamento_segue_rep103():
-    assert alvo_do_gesto("MAO_ESQUERDA") == (0, 0.2, 0, 0)  # esquerda = y+
-    assert alvo_do_gesto("MAO_DIREITA") == (0, -0.2, 0, 0)
-    assert alvo_do_gesto("MAO_SUBINDO") == (0, 0, 0.2, 0)
-    assert alvo_do_gesto("MAO_DESCENDO") == (0, 0, -0.2, 0)
-    assert alvo_do_gesto("MAO_APROXIMANDO") == (0.2, 0, 0, 0)
-    assert alvo_do_gesto("MAO_AFASTANDO") == (-0.2, 0, 0, 0)
-    assert alvo_do_gesto("V_ESQUERDA") == (0, 0, 0, 0.2)  # anti-horário = yaw+
-    assert alvo_do_gesto("V_DIREITA") == (0, 0, 0, -0.2)
+    # Drone de frente para a pessoa: a direita dela é a esquerda do drone (y+).
+    assert alvo_do_gesto("POLEGAR_DIREITA") == (0, 0.2, 0, 0)
+    assert alvo_do_gesto("POLEGAR_ESQUERDA") == (0, -0.2, 0, 0)
+    assert alvo_do_gesto("INDICADOR_CIMA") == (0, 0, 0.2, 0)
+    assert alvo_do_gesto("INDICADOR_BAIXO") == (0, 0, -0.2, 0)
+    assert alvo_do_gesto("HANG_LOOSE") == (0.1, 0, 0, 0)  # frente = x+, metade da velocidade
+    assert alvo_do_gesto("MAO_ABERTA") == (-0.2, 0, 0, 0)
+    assert alvo_do_gesto("V") == (0, 0, 0, 0.2)  # sempre anti-horário = yaw+
 
 
-def test_gestos_de_parada_e_desconhecidos_dao_zeros():
-    for nome in ("NENHUMA_MAO", "PUNHO_FECHADO", PARADO, "DESCONHECIDO", "POLEGAR_CIMA", "xyz"):
+def test_gestos_sem_comando_e_desconhecidos_dao_zeros():
+    # O punho fechado só pousa (por RPC, no nó); como velocidade é zero.
+    for nome in ("NENHUMA_MAO", "PUNHO_FECHADO", PARADO, "DESCONHECIDO", "VARIAS_MAOS", "VARIAS_PESSOAS", "MAO_SUBINDO", "xyz"):
         assert alvo_do_gesto(nome) == ZEROS
-
-
-def test_filtro_ignora_o_retorno_da_mao():
-    f = FiltroRetorno()
-    assert f.filtrar("MAO_SUBINDO", 10.0) == "MAO_SUBINDO"
-    assert f.filtrar(PARADO, 10.3) == PARADO
-    assert f.filtrar("MAO_DESCENDO", 10.5) == PARADO  # mão voltando
-    assert f.filtrar("MAO_DESCENDO", 10.0 + RETORNO_S - 0.01) == PARADO
-    assert f.filtrar("MAO_DESCENDO", 10.0 + RETORNO_S + 0.01) == "MAO_DESCENDO"  # pausa longa: é comando
-
-
-def test_filtro_nao_afeta_outros_eixos_nem_o_mesmo_gesto():
-    f = FiltroRetorno()
-    assert f.filtrar("MAO_SUBINDO", 1.0) == "MAO_SUBINDO"
-    assert f.filtrar("MAO_ESQUERDA", 1.1) == "MAO_ESQUERDA"
-    assert f.filtrar("V_ESQUERDA", 1.2) == "V_ESQUERDA"
-    f = FiltroRetorno()
-    f.filtrar("MAO_SUBINDO", 1.0)
-    assert f.filtrar("MAO_SUBINDO", 1.3) == "MAO_SUBINDO"
-
-
-def test_filtro_reiniciar():
-    f = FiltroRetorno()
-    f.filtrar("MAO_SUBINDO", 1.0)
-    f.reiniciar()
-    assert f.filtrar("MAO_DESCENDO", 1.1) == "MAO_DESCENDO"
 
 
 def test_rampa_sobe_em_cerca_de_300ms_e_desce_em_150ms():

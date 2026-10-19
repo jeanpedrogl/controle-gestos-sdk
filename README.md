@@ -5,7 +5,8 @@ usada para pilotar um drone **DJI Mini SE** cujo app de celular (**Drone Bridge*
 atua apenas como ponte entre este computador e o controle físico da DJI.
 
 ```
-Webcam (computador) → visao_mao.py → integracao_visao_drone.py → ROS2 → rosbridge (WebSocket)
+Câmera do drone → celular (JPEG) → rosbridge (WebSocket) → integracao_visao_drone.py + visao_mao.py
+                                                                              │ comandos de voo (ROS2)
                                                                               │
                                                                      Wi-Fi (hotspot do PC)
                                                                               │
@@ -14,10 +15,11 @@ Webcam (computador) → visao_mao.py → integracao_visao_drone.py → ROS2 → 
                                                               DJI Mobile SDK v4 → controle RC → drone
 ```
 
-O vídeo da câmera do drone faz o caminho inverso: o celular recebe via DJI SDK,
-comprime em JPEG e publica em ROS2; `visor_camera_drone.py` mostra essa janela
-no computador. Essa câmera é só para acompanhar o voo — quem controla o drone
-é sempre a webcam do computador.
+A **imagem usada para reconhecer os gestos é a da câmera do próprio drone**: o celular recebe o
+vídeo via DJI SDK, comprime em JPEG (padrão 8 fps, 640 px) e publica em
+`/phone/drone_camera/compressed`; o `piloto_gestos` classifica a mão em cada quadro e mostra a
+mesma janela, com o esqueleto da mão, o gesto e o estado. Ou seja, o drone precisa estar
+apontado para quem faz os gestos, e a webcam do computador não é usada.
 
 ## Por que ROS2 + rosbridge, e não ROS2 "puro" até o celular
 
@@ -58,15 +60,14 @@ Use `python3 -m colcon build`, não só `colcon build`: o executável `colcon` d
 próprio shebang fixo pro Python do sistema, então chamado direto ele ignora o venv ativado e
 gera os nós apontando pro Python errado (sem o `mediapipe` instalado).
 
-Isso sobe três coisas: o `rosbridge_websocket` (porta `9090`, padrão), o nó
-`piloto_gestos` (abre a webcam, mostra uma janela com o gesto detectado) e o
-nó `visor_camera_drone` (mostra o vídeo do drone assim que o celular começar
-a publicar).
-
-Outra webcam: `ros2 launch ponte_visao_drone sistema.launch.py camera_index:=1`.
+Isso sobe duas coisas: o `rosbridge_websocket` (porta `9090`, padrão) e o nó
+`piloto_gestos` (assina o vídeo do drone e mostra uma janela com a imagem, o gesto detectado e o
+estado; fica em "Aguardando video do drone" até o celular começar a publicar). O nó
+`visor_camera_drone` (só monitoramento) não sobe mais junto, porque o piloto já mostra o vídeo;
+se quiser, `ros2 run ponte_visao_drone visor_camera_drone`.
 Tudo de uma vez, com compilação automática: `./iniciar.sh`.
 
-Para rodar só a detecção, sem ROS2 nem drone (debug rápido da webcam):
+Para rodar só a detecção, sem ROS2 nem drone (debug rápido, com a webcam do computador):
 
 ```bash
 .venv/bin/python -m ponte_visao_drone.visao_mao
@@ -88,8 +89,9 @@ rosbridge é `9090`.
 | Tecla | Ação |
 |---|---|
 | `a` | Arma/desarma o envio de comandos (o drone só se move com "armado"). **Só arma com o celular conectado** (telemetria chegando, drone visível e celular assinando `/drone/stick_mode`); senão a janela explica por quê. |
-| `t` | Decolar: aperte **duas vezes** em até 3 s (também: polegar para cima por 2 s). Não decola sem telemetria, sem drone ou com o drone já no ar. |
-| `l` | Pousar (também: polegar para baixo por 2 s) |
+| `t` | Decolar: aperte **duas vezes** em até 3 s (também: punho fechado por 2 s, com o drone no chão **e o programa armado**). Não decola sem telemetria, sem drone ou com o drone já no ar. |
+| `l` | Pousar (também: punho fechado por 2 s, com o drone no ar) |
+| `1` `2` `3` `4` | Qualidade do vídeo do drone (`video.set_quality`), da mais leve à mais nítida: **1** 15 fps/320 px/q40, **2** 12 fps/480 px/q50, **3** 8 fps/640 px/q50 (padrão do celular), **4** 8 fps/960 px/q70. Menos pixels = menos atraso, mas a mão fica pequena; mais pixels = detecção melhor, mas mais atraso. A janela mostra o que o celular confirmou. Edite `PRESETS_VIDEO` em `integracao_visao_drone.py` para ajustar. |
 | `q` / `Esc` | Sai (desarma antes) |
 
 A janela mostra o gesto, se está armado e uma linha de estado do celular (drone, bateria, voando,
@@ -97,31 +99,63 @@ stick mode), além do resultado de decolar/pousar (`flight.take_off`/`flight.lan
 
 ## Mapeamento gesto → comando
 
-| Gesto | Comando |
+| Gesto (a pose é mantida, não há gestos de arrasto) | Comando |
 |---|---|
-| Nenhuma mão / Punho fechado / Mão aberta parada / Desconhecido | Pairar |
-| Polegar para cima (2s) | Decolar |
-| Polegar para baixo (2s) | Pousar |
-| V esquerda / V direita | Girar (yaw) esquerda / direita |
-| Mão subindo / descendo | Subir / descer |
-| Mão esquerda / direita | Deslocar lateralmente |
-| Mão se aproximando (palma cresce) | Drone vai para frente |
-| Mão se afastando (palma encolhe) | Drone vai para trás |
+| Indicador para cima (demais dedos fechados) | Subir |
+| Indicador para baixo (demais dedos fechados) | Descer |
+| Punho fechado com o polegar para a direita / esquerda | Deslocar para a **sua** direita / esquerda (o drone está de frente para você, então para ele é o lado oposto: polegar para a direita = esquerda do drone, `y+`) |
+| "V" (indicador e médio) | Girar (yaw) sempre no sentido anti-horário (para a esquerda). Não há giro horário por gesto: como a câmera gira junto, o lado da imagem em que a mão está não serve para escolher o sentido. |
+| Hang loose (polegar e mínimo esticados) | Frente (na direção de quem faz o gesto), a **metade** da velocidade dos outros eixos |
+| Mão aberta, palma para a câmera, dedos para cima | Trás |
+| Punho fechado (polegar recolhido) por ~2 s | **Decolar** se o drone está no chão, **pousar** se está voando (pela telemetria `voando`; sem telemetria não faz nada). Decolar por gesto só funciona **armado** (`a`); desarmado, o punho no chão só avisa na janela. Pousar vale sempre. A janela mostra a contagem; falhas de detecção de até 0,4 s no meio não zeram a contagem, mudar de gesto por mais tempo que isso cancela, e só age de novo depois de soltar o punho. Vale o polegar por cima dos dedos ou ao lado do indicador; polegar saindo da mão (para cima, para baixo, para o lado) não é mão fechada. Uma decolagem já pedida não é repetida por 10 s (uma recusada pelo celular libera nova tentativa). |
+| Nenhuma mão / qualquer outra pose | Pairar |
+| **Mais de uma mão levantada** ou **mais de uma pessoa** na imagem | Pairar: sem comando nenhum, e a contagem do punho cai. Evita que alguém que entre no quadro do drone assuma o controle. |
+
+Direita/esquerda são as do ponto de vista do usuário (o quadro do drone é espelhado, como num espelho). O comando
+vale enquanto o gesto é mantido; sem gesto reconhecido o drone paira. Polegar para cima/para baixo
+ou torto **não** é comando (e não conta como punho, então não pousa).
 
 Os valores são **20 %** do limite do app (`VELOCIDADE_*` em `comando_voo.py`: 1,0 = 4 m/s na
-horizontal, 2 m/s na vertical, 85 °/s no giro), com rampa de ~0,3 s subindo e ~0,15 s descendo. Depois de
-um movimento, o gesto **oposto** nos 0,8 s seguintes é tratado como "a mão voltando ao centro" e vira
-pairar (a mão sobe, volta descendo, e o drone não desce).
+horizontal, 2 m/s na vertical, 85 °/s no giro), com rampa de ~0,3 s subindo e ~0,15 s descendo. Exceção: "frente" (hang loose) usa metade (`FATOR_FRENTE`, 10 % do limite = 0,4 m/s).
+Os limiares das poses (`FATOR_*` e `LIMIAR_*` em `poses_mao.py`) foram escolhidos sem testar com uma
+mão real; confira com `.venv/bin/python -m ponte_visao_drone.visao_mao` e ajuste se preciso.
+
+## Como a mão é encontrada (duas etapas)
+
+Na câmera grande-angular do drone a mão ocupa poucos pixels: o detector de palma do MediaPipe, que
+olha o quadro inteiro reduzido para ~192 px, só a achava com ela a uns 20 cm. Por isso a detecção é
+em duas etapas ("zoom por software", `visao_mao.py` + `recorte_mao.py`):
+
+1. O **MediaPipe Pose** acha a *pessoa* no quadro inteiro (o corpo é grande e fácil de achar a
+   alguns metros) e dá os pontos dos ombros, pulsos e mãos.
+2. Para cada mão **levantada** (pulso acima do meio do tronco), um quadrado do quadro original em
+   volta da mão (1,1 largura de ombro de lado) é recortado, e o modelo de mão roda só nele. Os
+   gestos são os mesmos da tabela acima.
+
+Consequências práticas:
+- **Faça os gestos com a mão acima da cintura.** Mão abaixada (braço solto, que costuma parecer
+  um punho) não é procurada e não comanda nada.
+- **Mais de uma pessoa no quadro**: nenhum comando (`VARIAS_PESSOAS`), o drone paira.
+- **Sem pessoa no quadro**, ou com os ombros fora da imagem (mão bem perto da câmera), volta ao
+  modo antigo: mão procurada no quadro inteiro. A janela mostra o modo (`corpo` ou `so mao`), o
+  esqueleto do corpo em cinza e os recortes em amarelo.
+- **A resolução do vídeo agora importa**: o recorte só tem detalhe se o quadro tiver pixels. Prefira
+  as teclas `3`/`4` (ou um preset com mais pixels e menos fps).
+- Custo nesta máquina (Ryzen 5 2500U, só CPU): ~95 ms por quadro com uma mão levantada, ~140 ms com
+  as duas; o vídeo chega a ~8 fps, então cabe, mas sobra pouco.
+- Para testar sem drone: `cd src/ponte_visao_drone && ../../.venv/bin/python -m ponte_visao_drone.visao_mao`
+  usa a webcam com as mesmas duas etapas; afaste-se e veja até onde a mão é achada.
+- O modelo `pose_landmarker_full.task` fica em `ponte_visao_drone/modelos/` (baixado sozinho se faltar).
 
 ## Tópicos ROS2 (ponte com o celular)
 
 Publicados por este pacote (consumidos pelo celular):
-- `/drone/cmd_vel` (`geometry_msgs/Twist`) — velocidade, a **20 Hz fixos** (mesmo em zeros) enquanto armado; se os gestos param de chegar (webcam travada), manda zeros.
+- `/drone/cmd_vel` (`geometry_msgs/Twist`) — velocidade, a **20 Hz fixos** (mesmo em zeros) enquanto armado; se os gestos param de chegar (vídeo do drone travado ou atrasado, mais de 0,6 s sem quadro novo), manda zeros.
 - `/drone/stick_mode` (`std_msgs/Bool`) — só quando o estado muda (quando `false`, o controle físico da DJI assume).
-- `/drone/rpc/request` (`std_msgs/String`, JSON) — `flight.take_off` e `flight.land`, com resposta em `/phone/rpc/response` (ids únicos por programa; a resposta aparece na janela).
+- `/drone/rpc/request` (`std_msgs/String`, JSON) — `flight.take_off`, `flight.land` e `video.set_quality`, com resposta em `/phone/rpc/response` (ids únicos por programa; a resposta aparece na janela).
 
 Publicados pelo celular (consumidos aqui):
-- `/phone/drone_camera/compressed` (`sensor_msgs/CompressedImage`) — vídeo do drone, ~8fps JPEG.
+- `/phone/drone_camera/compressed` (`sensor_msgs/CompressedImage`) — vídeo do drone, ~8fps JPEG; **é a entrada da visão**. Dá para pedir mais fps/resolução ao celular com o RPC `video.set_quality`.
 - `/phone/telemetria` (`std_msgs/String`, JSON, 2 Hz) — `drone_conectado`, `stick_mode`, `bateria_percent`, `altitude_m`, `velocidade_ms`, `satelites`, `voando`. Usada para só armar com o celular ouvindo e para desarmar se o celular retomar o controle.
 - `/phone/rpc/response` (`std_msgs/String`, JSON) — respostas dos comandos RPC.
 
@@ -140,19 +174,19 @@ tocar na ponte em si.
   travou), o celular para de mandar velocidade e o drone paira **ainda em stick mode**;
   o controle físico só volta com "ASSUMIR CONTROLE (RC)" ou pânico no celular.
 - Este programa **desarma** (Twist zerado e depois `stick_mode: false`) ao sair por `q`/`Esc`,
-  `Ctrl+C`, `kill`, erro ou webcam perdida. Para isso o nó inicia o ROS com
+  `Ctrl+C`, `kill` ou erro. Para isso o nó inicia o ROS com
   `SignalHandlerOptions.NO` (no Humble o `Ctrl+C` padrão invalida o contexto antes do `finally`).
 - Se a telemetria disser `stick_mode: false` (pânico, "assumir controle", app em segundo plano) ou
   sumir, o programa **desarma e não rearma sozinho**.
 - Teste sem risco num domínio ROS isolado: `export ROS_DOMAIN_ID=87 ROS_LOCALHOST_ONLY=1`. No domínio
-  padrão, com o celular conectado, `t`/`l` e o gesto de polegar atingem o drone de verdade.
+  padrão, com o celular conectado, `t`/`l` e o gesto de punho atingem o drone de verdade.
 - A rede do rosbridge não tem autenticação nem criptografia: use um hotspot com senha.
 
 ## Testes
 
-A lógica pura (rampa, mapeamento, filtro de retorno) está em `comando_voo.py` e é testada sem ROS
-nem webcam:
+A lógica pura está em `comando_voo.py` (rampa, mapeamento gesto → velocidade) e `poses_mao.py`
+(classificação das poses a partir dos landmarks) e é testada sem ROS, MediaPipe nem câmera:
 
 ```bash
-cd src/ponte_visao_drone && python3 -m pytest test/test_comando_voo.py
+cd src/ponte_visao_drone && python3 -m pytest test
 ```

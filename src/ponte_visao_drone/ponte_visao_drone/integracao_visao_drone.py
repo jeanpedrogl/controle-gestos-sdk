@@ -57,6 +57,7 @@ from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Bool, String
 
+from . import filtro_stderr
 from .comando_voo import PARADO, ZEROS, GestoMantido, Suavizador, alvo_do_gesto
 from .missao_fase3 import Entrada, MissaoFase3, pessoa_do_corpo
 from .terminal import colorir
@@ -596,6 +597,7 @@ def _encerrar(*_) -> None:
 
 
 def main() -> None:
+    filtro_stderr.instalar()  # some com o "Corrupt JPEG data" a cada quadro danificado e os avisos do MediaPipe
     # Sem isso, no Humble o Ctrl+C invalida o contexto antes do `finally` e o desarme não é publicado.
     rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
     signal.signal(signal.SIGINT, _encerrar)
@@ -681,6 +683,7 @@ def main() -> None:
         no.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
+        filtro_stderr.restaurar()  # por último: repassa as linhas do desarme que ainda estão no pipe
 
 
 if __name__ == "__main__":

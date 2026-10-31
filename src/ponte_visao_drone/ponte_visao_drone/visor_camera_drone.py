@@ -14,6 +14,8 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
 
+from . import filtro_stderr
+
 JANELA = "Camera do drone (via celular)"
 
 
@@ -34,6 +36,7 @@ class VisorCameraDrone(Node):
 
 
 def main() -> None:
+    filtro_stderr.instalar()  # some com o "Corrupt JPEG data" a cada quadro danificado
     rclpy.init()
     no = VisorCameraDrone()
     try:
@@ -47,6 +50,7 @@ def main() -> None:
         if rclpy.ok():
             rclpy.shutdown()
         cv2.destroyAllWindows()
+        filtro_stderr.restaurar()
 
 
 if __name__ == "__main__":

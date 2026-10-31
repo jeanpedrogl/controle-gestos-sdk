@@ -19,10 +19,15 @@ Uso:
 
 import time
 import urllib.request
+import warnings
 from pathlib import Path
 
 import cv2
-import mediapipe as mp
+
+# O `mediapipe` importa o `matplotlib` (nada aqui o usa), que avisa que não achou o Axes3D porque há
+# um matplotlib do sistema além do da venv (ver CLAUDE.md). Inofensivo; só polui o terminal.
+warnings.filterwarnings("ignore", message="Unable to import Axes3D")
+import mediapipe as mp  # noqa: E402
 import numpy as np
 from mediapipe.tasks.python import BaseOptions, vision
 

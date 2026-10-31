@@ -142,14 +142,14 @@ class DetectorGestos:
             maos = [m for m in (self._mao_no_recorte(frame_bgr, r) for r in recortes) if m is not None]
             self.maos = remover_duplicadas(maos)
             # As mãos vieram dos recortes de um único corpo: dois punhos podem valer (DOIS_PUNHOS).
-            return classificar_maos(self.maos, mesma_pessoa=True)  # nenhuma mão levantada: NENHUMA_MAO
+            return classificar_maos(self.maos, largura, mesma_pessoa=True)  # nenhuma mão levantada: NENHUMA_MAO
 
         # Ninguém no quadro, ou só um pedaço da pessoa (sem ombros): provavelmente a mão está perto
         # da câmera e o corpo ficou de fora.
         self.modo = "so mao"
         resultado = self._maos.detect(imagem).hand_landmarks
         self.maos = [np.array([[lm.x, lm.y] for lm in mao]) * escala for mao in resultado]
-        return classificar_maos(self.maos)
+        return classificar_maos(self.maos, largura)
 
     def _mao_no_recorte(self, frame_bgr: np.ndarray, recorte: Recorte) -> np.ndarray | None:
         """Landmarks (21, 2), em pixels do quadro, da mão mais central do recorte (ou None)."""

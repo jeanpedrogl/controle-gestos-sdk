@@ -52,8 +52,11 @@ def mao(esticados=(), polegar="recolhido", angulo_mao=0.0, centro=(320.0, 240.0)
     return (p @ giro.T) * escala + np.array(centro)
 
 
+LARGURA = 640.0  # largura do quadro; `mao()` fica no centro (320) por padrão
+
+
 def classe(p: np.ndarray) -> Gesto:
-    return classificar_pose(p)
+    return classificar_pose(p, LARGURA)
 
 
 def test_indicador_para_cima_e_para_baixo():
@@ -101,9 +104,11 @@ def test_polegar_saindo_da_mao_nao_e_mao_fechada():
     assert classe(mao(polegar=(-0.75, -0.6))) is not Gesto.PUNHO_FECHADO
 
 
-def test_v_nao_depende_do_lado_da_tela():
-    for x in (100.0, 320.0, 540.0):
-        assert classe(mao({"indicador", "medio"}, centro=(x, 240.0))) is Gesto.V
+def test_v_depende_do_lado_da_tela():
+    assert classe(mao({"indicador", "medio"}, centro=(100.0, 240.0))) is Gesto.V_ESQUERDA
+    assert classe(mao({"indicador", "medio"}, centro=(300.0, 240.0))) is Gesto.V_ESQUERDA
+    assert classe(mao({"indicador", "medio"}, centro=(340.0, 240.0))) is Gesto.V_DIREITA
+    assert classe(mao({"indicador", "medio"}, centro=(540.0, 240.0))) is Gesto.V_DIREITA
 
 
 def test_hang_loose():
@@ -126,15 +131,15 @@ def test_outras_combinacoes_sao_desconhecidas(esticados):
 
 def test_varias_maos_nao_sao_comando():
     punho = mao()
-    assert classificar_maos([]) is Gesto.NENHUMA_MAO
-    assert classificar_maos([punho]) is Gesto.PUNHO_FECHADO
-    assert classificar_maos([punho, mao({"indicador"}, centro=(500.0, 240.0))]) is Gesto.VARIAS_MAOS
+    assert classificar_maos([], LARGURA) is Gesto.NENHUMA_MAO
+    assert classificar_maos([punho], LARGURA) is Gesto.PUNHO_FECHADO
+    assert classificar_maos([punho, mao({"indicador"}, centro=(500.0, 240.0))], LARGURA) is Gesto.VARIAS_MAOS
 
 
 def test_dois_punhos_so_valem_da_mesma_pessoa():
     esquerdo, direito = mao(), mao(centro=(500.0, 240.0))
-    assert classificar_maos([esquerdo, direito], mesma_pessoa=True) is Gesto.DOIS_PUNHOS
-    assert classificar_maos([esquerdo, direito]) is Gesto.VARIAS_MAOS  # modo "só mão": sem garantia
+    assert classificar_maos([esquerdo, direito], LARGURA, mesma_pessoa=True) is Gesto.DOIS_PUNHOS
+    assert classificar_maos([esquerdo, direito], LARGURA) is Gesto.VARIAS_MAOS  # modo "só mão": sem garantia
     com_indicador = mao({"indicador"}, centro=(500.0, 240.0))
-    assert classificar_maos([esquerdo, com_indicador], mesma_pessoa=True) is Gesto.VARIAS_MAOS
-    assert classificar_maos([esquerdo, direito, mao(centro=(100.0, 240.0))], mesma_pessoa=True) is Gesto.VARIAS_MAOS
+    assert classificar_maos([esquerdo, com_indicador], LARGURA, mesma_pessoa=True) is Gesto.VARIAS_MAOS
+    assert classificar_maos([esquerdo, direito, mao(centro=(100.0, 240.0))], LARGURA, mesma_pessoa=True) is Gesto.VARIAS_MAOS

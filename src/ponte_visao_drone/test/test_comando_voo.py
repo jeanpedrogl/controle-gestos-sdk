@@ -31,7 +31,8 @@ def test_mapeamento_segue_rep103():
     assert alvo_do_gesto("INDICADOR_BAIXO") == (0, 0, -0.2, 0)
     assert alvo_do_gesto("HANG_LOOSE") == (0.1, 0, 0, 0)  # frente = x+, metade da velocidade
     assert alvo_do_gesto("MAO_ABERTA") == (-0.2, 0, 0, 0)
-    assert alvo_do_gesto("V") == (0, 0, 0, 0.2)  # sempre anti-horário = yaw+
+    assert alvo_do_gesto("V_ESQUERDA") == (0, 0, 0, 0.2)  # para a esquerda = anti-horário = yaw+
+    assert alvo_do_gesto("V_DIREITA") == (0, 0, 0, -0.2)
 
 
 def test_gestos_sem_comando_e_desconhecidos_dao_zeros():

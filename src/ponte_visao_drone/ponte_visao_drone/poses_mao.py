@@ -6,13 +6,13 @@ drone só anda enquanto a pose é mantida:
 
     indicador esticado, demais fechados, apontando p/ cima ou p/ baixo -> INDICADOR_CIMA / _BAIXO
     punho fechado com o polegar esticado na horizontal                 -> POLEGAR_ESQUERDA / _DIREITA
-    "V" (indicador + médio)                                            -> V
+    "V" (indicador + médio), na metade esquerda ou direita da imagem    -> V_ESQUERDA / V_DIREITA
     polegar e mínimo esticados, demais fechados ("hang loose")         -> HANG_LOOSE
     mão aberta com os dedos para cima                                  -> MAO_ABERTA
     punho fechado com o polegar recolhido                              -> PUNHO_FECHADO
 
-Esquerda/direita (polegar) são as da imagem *espelhada* (o frame da webcam é invertido antes de chegar
-aqui), ou seja, as do ponto de vista do usuário. Qualquer pose que não bata exatamente com uma
+Esquerda/direita (polegar e lado do V) são as da imagem *espelhada* (o quadro é invertido antes de
+chegar aqui), ou seja, as da tela que o usuário vê. Qualquer pose que não bata exatamente com uma
 dessas é DESCONHECIDO (o drone paira). Mais de uma mão na imagem (por exemplo outra pessoa
 entrando no quadro da câmera do drone) não é comando nenhum: VARIAS_MAOS, o drone paira e a
 contagem do punho cai. Com mais de uma pessoa no quadro (`visao_mao.py`, via MediaPipe Pose)
@@ -53,7 +53,8 @@ class Gesto(Enum):
     INDICADOR_BAIXO = "Indicador para baixo"
     POLEGAR_ESQUERDA = "Polegar para a esquerda"
     POLEGAR_DIREITA = "Polegar para a direita"
-    V = "Sinal V"
+    V_ESQUERDA = "Sinal V a esquerda"
+    V_DIREITA = "Sinal V a direita"
     HANG_LOOSE = "Hang loose"
     MAO_ABERTA = "Mao aberta"
     VARIAS_MAOS = "Varias maos"
@@ -109,8 +110,8 @@ def _componentes(origem: np.ndarray, destino: np.ndarray) -> tuple[float, float]
     return float(vetor[0]) / comprimento, -float(vetor[1]) / comprimento  # o y da imagem cresce para baixo
 
 
-def classificar_pose(p: np.ndarray) -> Gesto:
-    """Gesto de uma mão. `p`: landmarks (21, 2) em pixels."""
+def classificar_pose(p: np.ndarray, largura: float) -> Gesto:
+    """Gesto de uma mão. `p`: landmarks (21, 2) em pixels; `largura`: do quadro, para o lado do V."""
     palma = tamanho_palma(p)
     esticados, dobrados = _estados_dedos(p)
     polegar = _polegar_esticado(p, palma)
@@ -120,7 +121,7 @@ def classificar_pose(p: np.ndarray) -> Gesto:
         return Gesto.MAO_ABERTA if vertical > LIMIAR_VERTICAL else Gesto.DESCONHECIDO
 
     if esticados == {"indicador", "medio"} and dobrados == {"anelar", "minimo"}:
-        return Gesto.V
+        return Gesto.V_ESQUERDA if p[PALMA].mean(axis=0)[0] < largura / 2 else Gesto.V_DIREITA
 
     if esticados == {"indicador"} and dobrados == {"medio", "anelar", "minimo"}:
         _, vertical = _componentes(p[INDICADOR_MCP], p[INDICADOR_PONTA])
@@ -148,7 +149,7 @@ def classificar_pose(p: np.ndarray) -> Gesto:
     return Gesto.DESCONHECIDO
 
 
-def classificar_maos(maos: list[np.ndarray], mesma_pessoa: bool = False) -> Gesto:
+def classificar_maos(maos: list[np.ndarray], largura: float, mesma_pessoa: bool = False) -> Gesto:
     """Gesto do quadro todo. Vale com exatamente uma mão: com mais, ninguém sabe de quem é o comando.
 
     Exceção: `mesma_pessoa` (as duas mãos vieram dos recortes de um único corpo) e as duas fechadas
@@ -158,7 +159,7 @@ def classificar_maos(maos: list[np.ndarray], mesma_pessoa: bool = False) -> Gest
         return Gesto.NENHUMA_MAO
     if len(maos) > 1:
         if (mesma_pessoa and len(maos) == 2
-                and all(classificar_pose(m) is Gesto.PUNHO_FECHADO for m in maos)):
+                and all(classificar_pose(m, largura) is Gesto.PUNHO_FECHADO for m in maos)):
             return Gesto.DOIS_PUNHOS
         return Gesto.VARIAS_MAOS
-    return classificar_pose(maos[0])
+    return classificar_pose(maos[0], largura)

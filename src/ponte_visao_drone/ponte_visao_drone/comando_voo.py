@@ -34,7 +34,11 @@ _DIRECAO = {
     "POLEGAR_DIREITA": (0, 1, 0, 0),
     "HANG_LOOSE": (FATOR_FRENTE, 0, 0, 0),  # para frente, devagar
     "MAO_ABERTA": (-1, 0, 0, 0),  # palma para a câmera: para trás
-    "V": (0, 0, 0, 1),  # sempre anti-horário: a câmera gira com o drone, então o lado da mão na imagem não serve
+    # Lado da tela (imagem espelhada) em que está a mão: esquerda gira para a esquerda (anti-horário).
+    # Com o drone de frente para a pessoa, girar afasta a mão do centro: segurando o V, ela vai para
+    # a borda e sai do quadro, e aí o giro para sozinho.
+    "V_ESQUERDA": (0, 0, 0, 1),
+    "V_DIREITA": (0, 0, 0, -1),
 }
 
 # O que cada gesto de movimento faz, para o terminal (ASCII: também pode ir para a janela do OpenCV).
@@ -46,7 +50,8 @@ DESCRICAO = {
     "POLEGAR_DIREITA": "ir para a esquerda do drone (sua direita)",
     "HANG_LOOSE": "ir para frente, devagar",
     "MAO_ABERTA": "ir para tras",
-    "V": "girar no sentido anti-horario",
+    "V_ESQUERDA": "girar para a esquerda (anti-horario)",
+    "V_DIREITA": "girar para a direita (horario)",
 }
 
 ZEROS = (0.0, 0.0, 0.0, 0.0)

@@ -118,11 +118,11 @@ def test_gesto_que_pisca_nao_vai_para_o_terminal_e_repeticao_volta_a_aparecer():
     msgs = []
     for i in range(10):  # alterna a cada quadro: nunca fica estável
         msgs += m.passo(e(t + i * 0.05, voando=True, stick_mode=True,
-                          gesto="V" if i % 2 else "INDICADOR_CIMA")).mensagens
+                          gesto="V_ESQUERDA" if i % 2 else "INDICADOR_CIMA")).mensagens
     assert not any(msg.startswith("COMANDO") for msg in msgs)
-    for i, gesto in enumerate(["V"] * 8 + ["NENHUMA_MAO"] * 8 + ["V"] * 8):
+    for i, gesto in enumerate(["V_ESQUERDA"] * 8 + ["NENHUMA_MAO"] * 8 + ["V_ESQUERDA"] * 8):
         msgs += m.passo(e(t + 1 + i * 0.05, voando=True, stick_mode=True, gesto=gesto)).mensagens
-    v = "COMANDO:V -> girar no sentido anti-horario"
+    v = "COMANDO:V_ESQUERDA -> girar para a esquerda (anti-horario)"
     assert msgs.count(v) == 2 and not any("NENHUMA_MAO" in msg for msg in msgs)
 
 
